@@ -1,0 +1,32 @@
+# Git related
+.git*
+
+# Test directories
+test/
+tests/
+__tests__/
+
+# CI/CD
+.github/
+.travis.yml
+.gitlab-ci.yml
+circle.yml
+appveyor.yml
+
+# Editor configs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Development only
+examples/
+docs/
+.eslintrc
+.eslintignore
+.editorconfig
+*.tgz 

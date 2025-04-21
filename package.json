@@ -1,0 +1,30 @@
+{
+  "name": "flame-limit",
+  "version": "1.0.0",
+  "description": "Smart and flexible rate-limiting middleware for Express, Koa, Fastify, or plain Node.js HTTP servers",
+  "main": "index.js",
+  "keywords": [
+    "rate-limit",
+    "ratelimit",
+    "rate-limiting",
+    "middleware",
+    "express",
+    "koa",
+    "fastify",
+    "http",
+    "security"
+  ],
+  "author": "Turki Al-Shammari",
+  "license": "MIT",
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ml7s/flame-limit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ml7s/flame-limit/issues"
+  },
+  "homepage": "https://github.com/ml7s/flame-limit#readme"
+} 
