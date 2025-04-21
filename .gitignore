@@ -34,4 +34,8 @@ npm-shrinkwrap.json
 # yarn
 yarn.lock
 .pnp.*
-.yarn/* 
+.yarn/*
+
+# Hide configuration files
+.gitignore
+.npmignore 
