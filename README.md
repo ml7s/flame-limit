@@ -1,16 +1,16 @@
 # 🔥 flame-limit
 
-A smart and flexible rate-limiting middleware compatible with Express, Koa, Fastify, or plain Node.js HTTP servers.
+A smart, fast, and customizable rate-limiting middleware compatible with Express, Koa, Fastify, or plain Node.js HTTP servers.
 
 ## ✨ Features
 
 - 🚀 Works with Express, Koa, Fastify, and vanilla Node.js HTTP servers
-- 🎯 Path-based weight system for different rate limits per route
-- 🔒 IP-based or token-based rate limiting
+- 🎯 Multiple rate-limiting strategies (Fixed Window, Sliding Window, Token Bucket)
+- 🔒 IP-based or token-based rate limiting with custom identifiers
 - ⏱️ Customizable time windows and request limits
-- 🛠️ Custom handler for limited requests
-- 💪 Zero dependencies
-- 🧠 Intelligent rate-limiting with minimal overhead
+- 🧰 Scalable with Redis for distributed architectures
+- 🛠️ Path weight system for different rate limits based on routes
+- 💪 Production-ready with minimal overhead
 
 ## 📦 Installation
 
@@ -18,175 +18,313 @@ A smart and flexible rate-limiting middleware compatible with Express, Koa, Fast
 npm install flame-limit
 ```
 
-## 🔧 Configuration Options
+## 🔍 What is Flame Limit?
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `limit` | Number | 100 | Maximum number of requests allowed within the window |
-| `windowMs` | Number | 60000 (1 minute) | Time window in milliseconds |
-| `weightByPath` | Object | `{}` | Map of path patterns to request weights |
-| `tokenBased` | Boolean | `false` | Use `Authorization` header instead of IP address |
-| `onLimit` | Function | `null` | Custom handler function for limited requests |
+Flame Limit is a powerful rate-limiting library designed to protect your API and server resources from abuse. It provides multiple strategies for limiting requests, customizable configuration options, and support for different server frameworks.
 
-## 📚 Examples
+Rate limiting is essential for:
+
+- 🛡️ Protecting against DDoS attacks
+- 🚫 Preventing brute force attempts
+- 📊 Managing API usage and costs
+- ⚡ Ensuring fair service for all users
+- 🌐 Complying with third-party API limits
+
+## 🔧 Rate Limiting Strategies
+
+Flame Limit provides three rate-limiting strategies, each with its own strengths and ideal use cases:
+
+| Strategy | Description | Pros | Cons | Best For |
+|----------|-------------|------|------|----------|
+| **Fixed Window** | Limits requests in fixed time windows (e.g., 100 req/minute at clock-time boundaries) | ✅ Simple implementation<br>✅ Low memory usage<br>✅ Predictable reset times | ❌ Burst traffic at window boundaries<br>❌ Less fair at window edges | - General purpose rate limiting<br>- Simple APIs<br>- When predictable reset times matter |
+| **Sliding Window** | Distributes limits proportionally across two time windows | ✅ Smoother rate limiting<br>✅ Prevents boundary bursts<br>✅ More accurate limiting | ❌ Higher complexity<br>❌ Slightly more resource intensive | - Public APIs<br>- When preventing traffic spikes is important<br>- User-facing services |
+| **Token Bucket** | Allows for burst traffic with a continuous refill rate | ✅ Allows controlled bursts<br>✅ Natural traffic patterns<br>✅ Adapts to usage patterns | ❌ Refill logic is more complex<br>❌ Less predictable limits | - Bursty workloads<br>- Client SDKs<br>- When some bursts are acceptable |
+
+## 🔌 Storage Backends
+
+| Backend | Description | Pros | Cons | Best For |
+|---------|-------------|------|------|----------|
+| **Memory** | Stores rate-limit data in application memory | ✅ Fast access<br>✅ Zero dependencies<br>✅ Simple setup | ❌ Not shared between nodes<br>❌ Lost on restart<br>❌ Memory consumption | - Single server setups<br>- Development<br>- Small to medium traffic |
+| **Redis** | Stores rate-limit data in a Redis database | ✅ Shared across nodes<br>✅ Persists across restarts<br>✅ Scalable | ❌ External dependency<br>❌ Slightly higher latency<br>❌ Additional operational overhead | - Clusters/multiple servers<br>- High availability setups<br>- Production environments |
+
+## 🚀 Basic Usage
 
 ### Express.js
-
 ```javascript
 const express = require('express');
 const flameLimit = require('flame-limit');
 
 const app = express();
 
-// Basic usage with default settings
+// Basic usage with defaults (100 requests per minute, fixed window)
 app.use(flameLimit());
 
-// Advanced configuration
-const limiter = flameLimit({
-  limit: 50,
+// Advanced usage
+app.use(flameLimit({
+  limit: 50,              // 50 requests per window
   windowMs: 15 * 60 * 1000, // 15 minutes
-  weightByPath: {
-    '/api/users': 5,         // Exact match
-    '/api/products/*': 2,    // Wildcard matching
-    '^/admin.*$': 10         // RegExp pattern
-  },
-  tokenBased: false,
-  onLimit: (req, res) => {
-    res.status(429).json({
-      status: 'error',
-      message: 'Custom rate limit exceeded message',
-      retryAfter: '15 minutes'
-    });
+  strategy: 'sliding',    // Use sliding window algorithm
+  backend: 'memory',      // Use in-memory storage
+  weightByPath: true,     // Enable path-based weights
+  weights: {
+    '/api/search': 5,      // Search endpoint costs 5 points
+    '/api/products/*': 2,  // Product endpoints cost 2 points
+    '^/admin.*$': 10       // Admin routes cost 10 points
   }
-});
+}));
 
-// Apply to specific routes
-app.use('/api', limiter);
-
-app.listen(3000, () => {
-  console.log('Server running on port 3000');
-});
+app.listen(3000);
 ```
 
-### Node.js HTTP Server
+### Koa.js
+```javascript
+const Koa = require('koa');
+const flameLimit = require('flame-limit');
 
+const app = new Koa();
+
+// Middleware adapter for Koa
+const koaAdapter = (middleware) => {
+  return async (ctx, next) => {
+    return new Promise((resolve, reject) => {
+      middleware(ctx.req, ctx.res, (err) => {
+        if (err) reject(err);
+        else resolve(next());
+      });
+    });
+  };
+};
+
+// Apply rate limiting
+app.use(koaAdapter(flameLimit({
+  limit: 100,
+  windowMs: 60000
+})));
+
+app.listen(3000);
+```
+
+### Fastify
+```javascript
+const fastify = require('fastify')();
+const flameLimit = require('flame-limit');
+
+const limiter = flameLimit({
+  limit: 100,
+  windowMs: 60000,
+  strategy: 'token'
+});
+
+// Register as middleware
+fastify.addHook('onRequest', (request, reply, done) => {
+  limiter(request.raw, reply.raw, (err) => {
+    if (err) {
+      reply.send(err);
+      return;
+    }
+    done();
+  });
+});
+
+fastify.listen({ port: 3000 });
+```
+
+### Native HTTP Server
 ```javascript
 const http = require('http');
 const flameLimit = require('flame-limit');
 
 const limiter = flameLimit({
   limit: 100,
-  windowMs: 60000 // 1 minute
+  windowMs: 60000
 });
 
 const server = http.createServer((req, res) => {
   // Apply rate limiting
-  if (!limiter(req, res, () => {})) {
-    return; // Request was limited and response was sent
-  }
-  
-  // Handle the request normally
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Hello World!');
+  limiter(req, res, (err) => {
+    if (err) {
+      return;
+    }
+    
+    // Your server logic here
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Hello World!');
+  });
 });
 
-server.listen(3000, () => {
-  console.log('Server running on port 3000');
-});
+server.listen(3000);
 ```
 
-### Using Token-Based Rate Limiting
+## ⚙️ Advanced Configuration
 
 ```javascript
-const express = require('express');
 const flameLimit = require('flame-limit');
+const redis = require('redis');
 
-const app = express();
+// Create Redis client
+const redisClient = redis.createClient({ url: 'redis://localhost:6379' });
+(async () => { await redisClient.connect(); })();
 
-const apiLimiter = flameLimit({
-  limit: 300,
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  tokenBased: true // Uses Authorization header instead of IP
-});
-
-app.use('/api', apiLimiter);
-
-app.get('/api/data', (req, res) => {
-  res.json({ data: 'This endpoint is protected by token-based rate limiting' });
-});
-
-app.listen(3000);
-```
-
-### Using Path Weights
-
-```javascript
-const express = require('express');
-const flameLimit = require('flame-limit');
-
-const app = express();
-
+// Configure rate limiter
 const limiter = flameLimit({
-  limit: 100, // Base limit of 100 points
-  windowMs: 60 * 1000, // 1 minute
-  weightByPath: {
-    '/api/read': 1,        // Low weight for read operations
-    '/api/write': 5,       // Medium weight for write operations
-    '/api/admin/*': 10     // High weight for admin operations
+  // Basic settings
+  limit: 200,                // Maximum requests per window
+  windowMs: 60 * 1000,       // Window size in milliseconds (1 minute)
+  
+  // Strategy selection
+  strategy: 'sliding',       // 'fixed', 'sliding', or 'token'
+  
+  // Storage backend
+  backend: 'redis',          // 'memory' or 'redis'
+  redisClient: redisClient,  // Redis client instance
+  keyPrefix: 'myapp:ratelimit:', // Key prefix for Redis
+  
+  // Path weighting
+  weightByPath: true,        // Enable path-based weighting
+  weights: {
+    '/api/public/*': 1,      // Low weight for public endpoints
+    '/api/user/*': 5,        // Medium weight for user actions
+    '/api/admin/*': 10       // High weight for admin actions
+  },
+  
+  // Client identification
+  trustProxy: true,         // Trust X-Forwarded-For header
+  identifierFn: (req) => {   // Custom identifier function
+    // Use API key from query or header
+    return req.query.api_key || req.headers['x-api-key'] || req.ip;
+  },
+  
+  // Response customization
+  onLimit: (req, res, next, resetTime) => {
+    res.statusCode = 429;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      error: 'Too Many Requests',
+      retryAfter: Math.ceil((resetTime - Date.now()) / 1000)
+    }));
+  }
+});
+```
+
+## 🔍 Custom Identifier Functions
+
+The `identifierFn` option allows you to define how clients are identified for rate limiting purposes. This is powerful for creating sophisticated rate-limiting schemes.
+
+```javascript
+// Limit by API key
+flameLimit({
+  identifierFn: (req) => req.headers['x-api-key'] || 'anonymous'
+});
+
+// Limit by user ID (after authentication)
+flameLimit({
+  identifierFn: (req) => req.user?.id || req.ip
+});
+
+// Limit by combination of factors
+flameLimit({
+  identifierFn: (req) => {
+    const ip = req.ip || req.connection?.remoteAddress;
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    return `${ip}:${userAgent.substring(0, 20)}`;
   }
 });
 
-app.use(limiter);
-
-app.listen(3000);
+// Differentiate between authenticated and anonymous users
+flameLimit({
+  identifierFn: (req) => {
+    if (req.user?.id) {
+      // Authenticated users get their own rate limit
+      return `user:${req.user.id}`;
+    } else {
+      // Anonymous requests are rate limited by IP
+      return `ip:${req.ip}`;
+    }
+  }
+});
 ```
 
-## 📋 Response Example
+## 🛡️ Production Best Practices
 
-When a request is blocked, the following response is sent (unless `onLimit` is defined):
+| Consideration | Recommendation |
+|--------------|----------------|
+| **High Availability** | Use Redis backend with proper replication/clustering to avoid single points of failure |
+| **Memory Usage** | Monitor memory usage when using in-memory backend; large numbers of unique users can cause memory growth |
+| **Security** | Use HTTPS and validate client IPs or tokens to prevent spoofing |
+| **Performance** | Place rate limiting as early as possible in the request pipeline |
+| **Monitoring** | Log rate limit events and set up alerts for unusual patterns |
+| **Graceful Degradation** | Implement circuit breakers and fallbacks when Redis is unavailable |
+| **Response Headers** | Always include rate limit headers (`X-RateLimit-*`) for client awareness |
+| **Testing** | Load test your rate limits to ensure they behave as expected under stress |
 
-```json
-{
-  "status": "error",
-  "statusCode": 429,
-  "message": "Too Many Requests",
-  "limitResetAt": 1622548800000
-}
+## 🔥 When to Use Each Strategy
+
+### Fixed Window
+- ✅ General-purpose rate limiting
+- ✅ When simplicity is important
+- ✅ For predictable reset times (on the hour, minute, etc.)
+- ❌ Not ideal when boundary bursts are a concern
+
+### Sliding Window
+- ✅ Public APIs with consistent traffic
+- ✅ When preventing traffic spikes is critical
+- ✅ For smoother rate limiting behavior
+- ❌ Not ideal when computational efficiency is the top priority
+
+### Token Bucket
+- ✅ When bursts of traffic are acceptable but sustained high rates are not
+- ✅ For APIs where user experience benefits from occasional bursts
+- ✅ Client SDKs and tools
+- ❌ Not ideal when strict, predictable limits are required
+
+## 📈 Memory vs. Redis
+
+### When to use Memory backend:
+- ✅ Single-server deployments
+- ✅ Development environments
+- ✅ When simplicity and low latency are priorities
+- ✅ Low to medium traffic applications
+- ❌ Not suitable for clustered environments
+
+### When to use Redis backend:
+- ✅ Multiple server/container deployments
+- ✅ When rate limits need to persist across application restarts
+- ✅ High availability production environments
+- ✅ When you need centralized rate limiting
+- ❌ Not suitable when adding Redis adds too much complexity
+
+## 📝 API Reference
+
+### Main Function
+
+```javascript
+flameLimit(options);
 ```
 
-The response also includes a `Retry-After` header indicating how many seconds until the rate limit resets.
+### Options
 
-## 🚀 Performance and Production Usage
-
-### Memory Usage
-
-flame-limit stores all rate-limiting data in-memory, which means:
-
-- Fast access and low latency
-- No additional database dependencies
-- Data is lost on application restart
-- Memory usage increases with the number of clients
-
-For high-volume production applications, consider:
-
-1. Setting appropriate limits to prevent memory exhaustion
-2. Deploying behind a load balancer with sticky sessions if using multiple instances
-3. Implementing custom storage adapters for distributed environments (planned for future versions)
-
-### Security Considerations
-
-- When using IP-based limiting, be aware of potential issues with clients behind shared IPs
-- For API rate limiting, token-based limiting is recommended
-- Implement proper validation for tokens if using token-based limiting
-
-### Monitoring
-
-To monitor rate limiting in production:
-
-- Track 429 responses in your monitoring system
-- Consider implementing a custom `onLimit` handler that logs rate limit events
-- Set up alerts for unusual spikes in rate-limited requests
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `limit` | Number | 100 | Maximum number of requests allowed per window |
+| `windowMs` | Number | 60000 | Time window in milliseconds |
+| `strategy` | String | 'fixed' | Rate limiting strategy ('fixed', 'sliding', 'token') |
+| `backend` | String | 'memory' | Storage backend ('memory', 'redis') |
+| `redisClient` | Object | null | Redis client instance (required when backend is 'redis') |
+| `keyPrefix` | String | 'flame-limit:' | Prefix for storage keys |
+| `weightByPath` | Boolean | false | Enable path-based request weighting |
+| `weights` | Object | {} | Mapping of path patterns to weights |
+| `trustProxy` | Boolean | false | Trust X-Forwarded-For header for IP identification |
+| `identifierFn` | Function | null | Custom function to generate client identifiers |
+| `onLimit` | Function | null | Custom handler for rate-limited requests |
 
 ## 📄 License
 
-MIT 
+MIT
+
+## 🚀 v2.0.0 Changes
+
+- ✨ Added multiple rate limiting strategies (Fixed Window, Sliding Window, Token Bucket)
+- 🔄 Modular architecture for easier extensibility
+- 🧰 Added Redis store for distributed environments
+- 🔍 Enhanced client identification options
+- 🛡️ Improved production readiness 

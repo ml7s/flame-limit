@@ -1,8 +1,19 @@
 {
   "name": "flame-limit",
-  "version": "1.0.1",
+  "version": "2.0.1",
   "description": "Smart and flexible rate-limiting middleware for Express, Koa, Fastify, or plain Node.js HTTP servers",
-  "main": "index.js",
+  "main": "flame-limit.js",
+  "exports": {
+    ".": "./flame-limit.js",
+    "./strategies": "./strategies/index.js",
+    "./redis": "./RedisStore.js"
+  },
+  "files": [
+    "flame-limit.js",
+    "strategies",
+    "RedisStore.js",
+    "README.md"
+  ],
   "keywords": [
     "rate-limit",
     "ratelimit",
@@ -12,7 +23,10 @@
     "koa",
     "fastify",
     "http",
-    "security"
+    "security",
+    "throttle",
+    "ddos",
+    "protection"
   ],
   "author": "Turki Al-Shammari",
   "license": "MIT",
@@ -29,5 +43,8 @@
   "homepage": "https://github.com/ml7s/flame-limit#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "optionalDependencies": {
+    "redis": "^4.6.7"
   }
 }
